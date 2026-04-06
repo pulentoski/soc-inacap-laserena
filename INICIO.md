@@ -3,10 +3,6 @@
 | | |
 |---|---|
 | 🏫 **Institución** | INACAP — Sede La Serena |
-| 📚 **Asignatura** | Virtualización de Data Center |
-| 🎓 **Carrera** | Técnico en Ciberseguridad / Infraestructura TI |
-| 👨‍🏫 **Docente** | Por confirmar |
-| 🏢 **Sala** | Por confirmar |
 | 📅 **Año** | 2026 |
 
 ---
