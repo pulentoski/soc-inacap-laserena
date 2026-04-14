@@ -21,6 +21,12 @@ Este servidor utiliza la controladora **Dell PERC H310 Mini**, que es más bási
 
 ---
 
+## ⚠️ Nota importante — Proxmox y RAID 5
+
+**Proxmox VE no puede instalarse sobre un Virtual Disk en RAID 5.** El instalador requiere RAID 1 o RAID 10 para el disco de sistema operativo. Por esta razón se usa RAID 1 en este servidor.
+
+---
+
 ## Inventario de discos del servidor
 
 ### Estado inicial encontrado
@@ -37,7 +43,7 @@ Al revisar el servidor se encontró 1 Virtual Disk preconfigurado de una instala
 |---|---|---|---|
 | 00 | 558 GB (~600GB) | Online ✅ | Usar en VD0 |
 | 01 | 558 GB (~600GB) | Online ✅ | Usar en VD0 |
-| 02 | 558 GB (~600GB) | Online ✅ | Usar en VD0 |
+| 02 | 558 GB (~600GB) | Online ✅ | Sin asignar — disponible |
 | 03 | — Vacío — | N/A | Disponible para expansión futura |
 
 > ℹ️ Los valores en GB que muestra la controladora (558GB) corresponden a discos de 600GB nominales. La diferencia se debe al overhead de formateo y la conversión entre GB y GiB.
@@ -46,26 +52,20 @@ Al revisar el servidor se encontró 1 Virtual Disk preconfigurado de una instala
 
 ## Diseño RAID aplicado
 
-### ¿Por qué un solo Virtual Disk?
-
-A diferencia del R720, este servidor tiene solo 3 discos disponibles y un rol más acotado (laboratorio de práctica). Se usa un único VD con RAID 5 para maximizar el espacio útil manteniendo redundancia:
-
-- Con RAID 5 en 3 discos de 558GB se obtienen **~1116GB (~1.1TB) útiles**
-- Tolera la falla de 1 disco sin perder datos
-- Proxmox y todas las VMs conviven en este mismo VD
-
 ### Configuración final
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  VD0 — RAID 5 — ~1116GB  →  Proxmox OS + VMs           │
+│  VD0 — RAID 1 — ~558GB  →  Proxmox OS + VMs            │
 │  ├── Slot 00: SAS 558GB                                 │
-│  ├── Slot 01: SAS 558GB                                 │
-│  └── Slot 02: SAS 558GB                                 │
+│  └── Slot 01: SAS 558GB                                 │
 ├─────────────────────────────────────────────────────────┤
+│  Slot 02: SAS 558GB — Sin asignar                       │
 │  Slot 03: Vacío — disponible para expansión futura      │
 └─────────────────────────────────────────────────────────┘
 ```
+
+Con RAID 1 en 2 discos se obtienen **~558GB útiles** con tolerancia a 1 falla de disco. Proxmox y todas las VMs conviven en este VD.
 
 ---
 
@@ -83,73 +83,71 @@ F2 → Device Settings → Integrated RAID Controller 1: Dell PERC H310 Mini
 
 ---
 
-### Paso 1 — Eliminar Virtual Disks existentes
+### Paso 1 — Verificar VD existente
 
-> Solo necesario si el servidor tiene VDs previos. Si está limpio, saltar al Paso 2.
+En este servidor ya existía un VD0 en RAID 1 con los parámetros correctos. Ir a:
 
-Ir a:
 ```
-Virtual Disk Management → Select Virtual Disk Operations
+Virtual Disk Management → Manage Virtual Disk Properties
 ```
 
-1. Seleccionar VD0 → `Delete Virtual Disk` → confirmar **YES**
+Confirmar que el VD0 existente tiene:
 
-Después de esto todos los discos quedan como `Unconfigured Good`.
+```
+Virtual Disk 0 → RAID 1 → ~558GB → Ready ✅
+```
 
----
+Si el VD existente está correcto, no es necesario eliminarlo ni recrearlo. Continuar al Paso 2.
 
-### Paso 2 — Crear VD0 (Proxmox + VMs)
-
-Ir a:
+Si el VD no existe o está mal configurado, ir a:
 ```
 Virtual Disk Management → Create Virtual Disk
 ```
 
-Configurar con estos valores:
+Y configurar:
 
 | Campo | Valor |
 |---|---|
-| Select RAID Level | RAID 5 |
-| Virtual Disk Name | Data |
-| Virtual Disk Size | Dejar vacío (toma el máximo automático) |
+| Select RAID Level | RAID 1 |
+| Virtual Disk Name | Boot |
+| Virtual Disk Size | Dejar vacío (máximo automático) |
 | Strip Element Size | 64 KB |
 | Read Policy | Read Ahead |
 | Write Policy | Write Through |
 | Initialize | Fast Initialize |
 
-En **Select Physical Disks**, marcar los 3 discos disponibles:
+En **Select Physical Disks**, marcar únicamente:
 - ✅ Slot 00 — SAS 558GB
 - ✅ Slot 01 — SAS 558GB
-- ✅ Slot 02 — SAS 558GB
 
 → `Apply Changes` → Confirmar
 
 ---
 
-### Paso 3 — Configurar disco de arranque
+### Paso 2 — Configurar disco de arranque
 
 Ir a:
 ```
 Controller Management → Change Controller Properties → Set Bootable Device
 ```
 
-Seleccionar: **Virtual Disk 0: RAID5**
+Seleccionar: **Virtual Disk 0: RAID1, ~558GB**
 
 → `Apply Changes`
 
 ---
 
-### Paso 4 — Verificación final
+### Paso 3 — Verificación final
 
 Ir a:
 ```
 Virtual Disk Management → Manage Virtual Disk Properties
 ```
 
-Confirmar que aparece:
+Confirmar:
 
 ```
-Virtual Disk 0 → RAID 5 → ~1116GB → Ready ✅
+Virtual Disk 0 → RAID 1 → ~558GB → Ready ✅
 ```
 
 Ir a:
@@ -162,7 +160,7 @@ Confirmar:
 ```
 Slot 00 → 558GB → Online ✅  (miembro VD0)
 Slot 01 → 558GB → Online ✅  (miembro VD0)
-Slot 02 → 558GB → Online ✅  (miembro VD0)
+Slot 02 → 558GB → Online ✅  (sin asignar)
 Slot 03 → Vacío
 ```
 
@@ -179,7 +177,7 @@ Physical Disk Count: 3
 
 ---
 
-### Paso 5 — Salir e instalar Proxmox
+### Paso 4 — Salir e instalar Proxmox
 
 `Finish` → el servidor reinicia.
 
@@ -188,7 +186,7 @@ Conectar el USB con Proxmox VE. Al encender presionar `F11` (Dell) para el menú
 Durante la instalación de Proxmox, el instalador verá:
 
 ```
-Disco 1: ~1116GB → Seleccionar este para instalar Proxmox
+Disco 1: ~558GB → Seleccionar este para instalar Proxmox
 ```
 
 ---
@@ -211,7 +209,7 @@ Disco 1: ~1116GB → Seleccionar este para instalar Proxmox
 │  │  vulnerable      │  │  Disco del VD0       │  │
 │  └──────────────────┘  └──────────────────────┘  │
 │                                                  │
-│  Storage Pool: VD0 (~1116GB) — RAID 5 — 3xSAS   │
+│  Storage Pool: VD0 (~558GB) — RAID 1 — 2xSAS    │
 └──────────────────────────────────────────────────┘
 ```
 
