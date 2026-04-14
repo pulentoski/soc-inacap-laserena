@@ -137,7 +137,7 @@ Seleccionar: **Virtual Disk 0: RAID1, ~558GB**
 
 ---
 
-### Paso 3 — Verificación final
+### Paso 3 — Verificación final RAID
 
 Ir a:
 ```
@@ -177,7 +177,7 @@ Physical Disk Count: 3
 
 ---
 
-### Paso 4 — Salir e instalar Proxmox
+### Paso 4 — Instalación de Proxmox VE
 
 `Finish` → el servidor reinicia.
 
@@ -188,6 +188,30 @@ Durante la instalación de Proxmox, el instalador verá:
 ```
 Disco 1: ~558GB → Seleccionar este para instalar Proxmox
 ```
+
+---
+
+### ⚠️ Problema conocido — Proxmox no detecta discos RAID
+
+**En este servidor se presentó el siguiente problema:** al iniciar el instalador de Proxmox, los discos RAID no eran detectados. La causa es que la función **IOMMU** del kernel entra en conflicto con la controladora H310 en servidores Dell de esta generación.
+
+**Solución — Deshabilitar IOMMU en el instalador:**
+
+1. Arrancar desde el USB de Proxmox.
+2. En la pantalla de bienvenida seleccionar **"Install Proxmox VE"** pero **no presionar Enter**.
+3. Presionar la tecla `e` para editar los comandos de arranque.
+4. Usar las flechas del teclado para ubicarse en la línea que comienza con `linux`.
+5. Al final de esa línea agregar:
+
+```
+intel_iommu=off
+```
+
+6. Presionar `Ctrl + X` o `F10` para iniciar la instalación con este parámetro.
+
+A partir de este punto el instalador detecta correctamente el disco RAID y la instalación procede con normalidad.
+
+> ℹ️ Este problema es conocido en servidores Dell PowerEdge de generación 12 (R420, R620, R720) con controladoras PERC H310/H710 al instalar distribuciones Linux modernas. El parámetro `intel_iommu=off` deshabilita la virtualización de E/S que causa el conflicto.
 
 ---
 
