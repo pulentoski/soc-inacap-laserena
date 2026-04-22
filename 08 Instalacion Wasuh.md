@@ -38,7 +38,7 @@ En esta guía se instalan los tres componentes en una sola VM (all-in-one) usand
 | **Hostname** | `wazuh` |
 | **CPU** | 4 cores |
 | **RAM** | 8 GB |
-| **Disco** | 50 GB en `vm-storage` (ZFS) |
+| **Disco** | 25 GB en `sotorage-vms` (ZFS) |
 | **OS** | Amazon Linux 2023 (incluido en la OVA) |
 | **IP** | `10.0.0.4/24` |
 | **Gateway** | `10.0.0.1` |
@@ -73,21 +73,42 @@ qm create 200 --name wazuh --memory 8192 --cores 4 --net0 virtio,bridge=vmbr0
 
 ---
 
-## Paso 3 — Importar el disco
+## Paso 3 — Verificar nombre del storage
+
+Antes de importar el disco, verifica el nombre exacto del storage:
 
 ```bash
-qm importdisk 200 wazuh-4.14.4-disk-1.vmdk vm-storage
+pvesm status
 ```
 
-> Si el almacenamiento ZFS tiene otro nombre, reemplaza `vm-storage` por el nombre correcto. Verificar con `pvesm status`.
+La salida mostrará algo como:
+
+```
+Name             Type     Status     Total (KiB)    ...
+local             dir     active     ...
+local-lvm     lvmthin     active     ...
+sotorage-vms      dir     active     ...
+```
+
+Usa el nombre que aparece en la columna **Name** para el siguiente paso.
 
 ---
 
-## Paso 4 — Configurar y arrancar la VM
+## Paso 4 — Importar el disco
+
+```bash
+qm importdisk 200 wazuh-4.14.4-disk-1.vmdk sotorage-vms
+```
+
+> Este proceso importa ~25 GB y puede tardar varios minutos. Espera a que vuelva el prompt antes de continuar.
+
+---
+
+## Paso 5 — Configurar y arrancar la VM
 
 ```bash
 # Asignar el disco importado a la VM
-qm set 200 --scsihw virtio-scsi-pci --scsi0 vm-storage:vm-200-disk-0
+qm set 200 --scsihw virtio-scsi-pci --scsi0 sotorage-vms:vm-200-disk-0
 
 # Configurar disco de arranque
 qm set 200 --boot c --bootdisk scsi0
@@ -98,7 +119,7 @@ qm start 200
 
 ---
 
-## Paso 5 — Configurar IP estática
+## Paso 6 — Configurar IP estática
 
 En Proxmox → selecciona la VM 200 → **Console**, luego:
 
@@ -133,7 +154,7 @@ ip a
 
 ---
 
-## Paso 6 — Acceder al dashboard de Wazuh
+## Paso 7 — Acceder al dashboard de Wazuh
 
 Desde cualquier equipo en la misma red, abre el navegador:
 
@@ -154,7 +175,7 @@ contraseña: admin
 
 ---
 
-## Paso 7 — Cambiar contraseñas por defecto
+## Paso 8 — Cambiar contraseñas por defecto
 
 Por seguridad, cambia las credenciales inmediatamente después de acceder:
 
@@ -181,10 +202,10 @@ Guarda las nuevas contraseñas en un lugar seguro.
 
 | Problema | Solución |
 |---|---|
+| `storage 'X' does not exist` al importar | Verificar nombre exacto del storage con `pvesm status` |
 | Dashboard no carga después de 5 minutos | Verificar servicio: `systemctl status wazuh-dashboard` |
 | No puedo hacer ping a la VM | Verificar IP con `ip a` y que el bridge `vmbr0` esté activo en Proxmox |
 | Error de certificado en el navegador | Normal, es autofirmado. Aceptar la excepción de seguridad |
-| El disco importado no aparece | Verificar nombre del storage con `pvesm status` y ajustar el comando del Paso 3 |
 | La VM no arranca | Verificar que el bootdisk está correctamente asignado con `qm config 200` |
 
 ---
