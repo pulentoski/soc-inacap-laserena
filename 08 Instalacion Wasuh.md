@@ -102,13 +102,19 @@ qm importdisk 200 wazuh-4.14.4-disk-1.vmdk sotorage-vms
 
 > Este proceso importa ~25 GB y puede tardar varios minutos. Espera a que vuelva el prompt antes de continuar.
 
+Al finalizar verás:
+
+```
+unused0: successfully imported disk 'sotorage-vms:200/vm-200-disk-0.raw'
+```
+
 ---
 
 ## Paso 5 — Configurar y arrancar la VM
 
 ```bash
 # Asignar el disco importado a la VM
-qm set 200 --scsihw virtio-scsi-pci --scsi0 sotorage-vms:vm-200-disk-0
+qm set 200 --scsihw virtio-scsi-pci --scsi0 sotorage-vms:200/vm-200-disk-0.raw
 
 # Configurar disco de arranque
 qm set 200 --boot c --bootdisk scsi0
@@ -203,10 +209,11 @@ Guarda las nuevas contraseñas en un lugar seguro.
 | Problema | Solución |
 |---|---|
 | `storage 'X' does not exist` al importar | Verificar nombre exacto del storage con `pvesm status` |
+| El disco queda como `unused0` | Faltó ejecutar el comando `qm set ... --scsi0`. Ver Paso 5 |
 | Dashboard no carga después de 5 minutos | Verificar servicio: `systemctl status wazuh-dashboard` |
 | No puedo hacer ping a la VM | Verificar IP con `ip a` y que el bridge `vmbr0` esté activo en Proxmox |
 | Error de certificado en el navegador | Normal, es autofirmado. Aceptar la excepción de seguridad |
-| La VM no arranca | Verificar que el bootdisk está correctamente asignado con `qm config 200` |
+| La VM no arranca | Verificar configuración con `qm config 200` |
 
 ---
 
