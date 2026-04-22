@@ -215,6 +215,35 @@ apt update
 
 ---
 
+### Paso 7c — Solución: mirror no oficial (apqa.cn) en Proxmox 9.x
+
+En algunas instalaciones de Proxmox 9.x, el instalador configura automáticamente un mirror chino no oficial. Síntoma:
+
+```
+Err: https://mirrors.apqa.cn/proxmox/debian/pve trixie InRelease
+  Clearsigned file isn't valid, got 'NOSPLIT'
+```
+
+Solución:
+
+```bash
+# Ver qué archivos de repositorio existen
+ls /etc/apt/sources.list.d/
+
+# Reemplazar mirror no oficial por el oficial gratuito
+echo "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" > /etc/apt/sources.list.d/pve-no-sub.list
+
+# Eliminar archivos duplicados si existen
+rm -f /etc/apt/sources.list.d/pve-no-subscription.sources
+
+# Actualizar
+apt update
+```
+
+> ⚠️ No uses mirrors de terceros para Proxmox. El repositorio oficial gratuito (`pve-no-subscription`) es suficiente para entornos de laboratorio y producción sin suscripción.
+
+---
+
 ### Paso 8 — Acceder a la interfaz web de Proxmox
 
 1. **No cierres VirtualBox**, déjalo minimizado
@@ -230,7 +259,7 @@ apt update
 
 ---
 
-### Paso 8 — Primeras acciones en la interfaz
+### Paso 9 — Primeras acciones en la interfaz
 
 Una vez dentro, familiarízate con estos elementos:
 
@@ -254,7 +283,7 @@ Botones superiores:
 
 ---
 
-### Paso 9 — Crear tu primer contenedor LXC
+### Paso 10 — Crear tu primer contenedor LXC
 
 Los contenedores son más ligeros que las VMs. Prueba crear uno:
 
@@ -312,16 +341,18 @@ Acción: Create New VD (Virtual Disk)
 
 VD 1 — Para el sistema operativo:
   RAID Level: RAID 1 (Mirror)
-  Discos: Selecciona 2 discos de 600 GB
+  Discos: Selecciona 2 discos de 900 GB
   Nombre: OS_Drive
 
 VD 2 — Para almacenamiento de VMs:
-  RAID Level: RAID 5
-  Discos: Los discos de 3TB restantes
-  Nombre: VM_Storage
+  RAID Level: No configurar aquí — usar ZFS en Proxmox
+  Discos: Los 3 discos de 3TB dejarlos como Unconfigured/Ready
+  Nombre: (se configura desde Proxmox)
 ```
 
 5. Guarda y reinicia
+
+> ⚠️ Proxmox no soporta volúmenes RAID5 creados en el PERC. Los discos de datos deben dejarse sin configurar en el PERC y luego crear un **ZFS RAIDZ1** desde la interfaz de Proxmox.
 
 ---
 
@@ -334,7 +365,28 @@ VD 2 — Para almacenamiento de VMs:
 
 ---
 
-### Paso B4 — Acceder desde la red de INACAP
+### Paso B4 — Configurar almacenamiento ZFS para VMs (post-instalación)
+
+Una vez instalado Proxmox, configurar el almacenamiento con los 3 discos de 3TB:
+
+1. En la interfaz web → **Datacenter → Node → Disks → ZFS**
+2. Haz clic en **Create ZFS**
+3. Configura:
+
+| Campo | Valor |
+|---|---|
+| **Name** | `vm-storage` |
+| **RAID Level** | RAIDZ |
+| **Compression** | lz4 |
+| **Discos** | Selecciona los 3 discos de ~2794 GB |
+
+4. Haz clic en **Create**
+
+> Resultado: ~5.5 TB útiles con redundancia de 1 disco, compresión y snapshots nativos.
+
+---
+
+### Paso B5 — Acceder desde la red de INACAP
 
 Una vez instalado, desde cualquier laptop en la red de INACAP:
 
@@ -355,6 +407,8 @@ https://IP_DEL_SERVIDOR:8006
 | No puedo acceder a la interfaz web `:8006` | Todos | Verificar que la red es Adaptador Puente (no NAT). Probar `ping IP_PROXMOX` desde la laptop |
 | El servidor físico no reconoce los discos | Servidor | Entrar al RAID controller (Ctrl+R en Dell) y crear el Virtual Disk primero |
 | Error de certificado en el navegador al abrir Proxmox | Todos | Es normal (certificado autofirmado). Clic en "Avanzado" → "Continuar de todos modos" |
+| Error 401 en apt update | Servidor/VM | Ver Paso 7b — deshabilitar repos enterprise |
+| Mirror apqa.cn en apt update | Servidor/VM | Ver Paso 7c — reemplazar por repositorio oficial |
 
 ---
 
