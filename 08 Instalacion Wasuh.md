@@ -2,7 +2,7 @@
 
 ## Objetivo de esta fase
 
-Instalar Wazuh all-in-one en el servidor Dell R720 usando la imagen OVA oficial, importándola como VM en Proxmox VE.
+Instalar Wazuh all-in-one en el servidor Dell R720 usando un contenedor LXC Ubuntu 22.04 en Proxmox VE.
 
 ---
 
@@ -12,155 +12,145 @@ Wazuh es una plataforma open source de seguridad (XDR/SIEM) que incluye tres com
 
 | Componente | Función |
 |---|---|
-| **Wazuh Manager** | Recibe y procesa alertas de los agentes |
 | **Wazuh Indexer** | Almacena y indexa los eventos (basado en OpenSearch) |
+| **Wazuh Manager** | Recibe y procesa alertas de los agentes |
 | **Wazuh Dashboard** | Interfaz web de visualización y análisis |
 
-En esta guía se instalan los tres componentes en una sola VM (all-in-one) usando la OVA oficial.
+En esta guía se instalan los tres componentes en un solo contenedor LXC (all-in-one).
 
 ---
 
-## Requisitos previos
+## Requisitos del sistema
 
-- Proxmox VE instalado y funcionando
-- Acceso a la shell de Proxmox
-- Mínimo **8 GB de RAM** disponibles en el servidor
-- Mínimo **50 GB de disco** disponibles
-- Conexión a internet en el servidor
+| Agentes | CPU | RAM | Disco |
+|---|---|---|---|
+| 1-25 | 4 vCPU | 8 GB | 50 GB |
+| 25-50 | 8 vCPU | 8 GB | 100 GB |
+| 50-100 | 8 vCPU | 8 GB | 200 GB |
 
 ---
 
-## Especificaciones de la VM
+## Especificaciones del contenedor
 
 | Parámetro | Valor |
 |---|---|
-| **VM ID** | 200 |
+| **CT ID** | 200 |
+| **Tipo** | LXC sin privilegios |
 | **Hostname** | `wazuh` |
+| **OS** | Ubuntu 22.04 LTS |
 | **CPU** | 4 cores |
-| **RAM** | 8 GB |
-| **Disco** | 25 GB en `sotorage-vms` (ZFS) |
-| **OS** | Amazon Linux 2023 (incluido en la OVA) |
+| **RAM** | 8192 MB |
+| **Swap** | 2048 MB |
+| **Disco** | 50 GB en `sotorage-vms` |
 | **IP** | `10.0.0.4/24` |
 | **Gateway** | `10.0.0.1` |
 | **DNS** | `8.8.8.8` |
-| **Versión Wazuh** | 4.14.4 |
+| **Versión Wazuh** | 4.14.5 |
 
 ---
 
-## Paso 1 — Descargar y extraer la OVA
+## Paso 1 — Descargar template Ubuntu 22.04
 
-Desde la shell de Proxmox:
+Desde la interfaz web de Proxmox:
 
-```bash
-mkdir /var/lib/vz/wz
-cd /var/lib/vz/wz
-wget https://packages.wazuh.com/4.x/vm/wazuh-4.14.4.ova
-tar -xvf wazuh-4.14.4.ova
-```
+1. Selecciona **local** → pestaña **CT Templates**
+2. Haz clic en **Templates**
+3. Busca `ubuntu-22.04-standard`
+4. Selecciónalo y haz clic en **Download**
 
-Esto extrae tres archivos:
-- `wazuh-4.14.4.ovf`
-- `wazuh-4.14.4-disk-1.vmdk`
-- `wazuh-4.14.4.mf`
-
----
-
-## Paso 2 — Crear la VM en Proxmox
+O desde la shell de Proxmox:
 
 ```bash
-qm create 200 --name wazuh --memory 8192 --cores 4 --net0 virtio,bridge=vmbr0
+pveam update
+pveam download local ubuntu-22.04-standard_22.04-1_amd64.tar.zst
 ```
 
 ---
 
-## Paso 3 — Verificar nombre del storage
+## Paso 2 — Crear el contenedor LXC
 
-Antes de importar el disco, verifica el nombre exacto del storage:
+Desde la interfaz web: **Create CT** y configura:
 
-```bash
-pvesm status
-```
+| Pantalla | Campo | Valor |
+|---|---|---|
+| General | CT ID | 200 |
+| General | Hostname | wazuh |
+| General | Password | (elige una contraseña) |
+| Template | Template | ubuntu-22.04-standard |
+| Disks | Storage | sotorage-vms |
+| Disks | Disk size | 50 GB |
+| CPU | Cores | 4 |
+| Memory | Memory | 8192 MB |
+| Memory | Swap | 2048 MB |
+| Network | IPv4 | 10.0.0.4/24 |
+| Network | Gateway | 10.0.0.1 |
+| DNS | DNS | 8.8.8.8 |
 
-La salida mostrará algo como:
+Marca **"Start after created"** y haz clic en **Finish**.
 
-```
-Name             Type     Status     Total (KiB)    ...
-local             dir     active     ...
-local-lvm     lvmthin     active     ...
-sotorage-vms      dir     active     ...
-```
-
-Usa el nombre que aparece en la columna **Name** para el siguiente paso.
-
----
-
-## Paso 4 — Importar el disco
-
-```bash
-qm importdisk 200 wazuh-4.14.4-disk-1.vmdk sotorage-vms
-```
-
-> Este proceso importa ~25 GB y puede tardar varios minutos. Espera a que vuelva el prompt antes de continuar.
-
-Al finalizar verás:
-
-```
-unused0: successfully imported disk 'sotorage-vms:200/vm-200-disk-0.raw'
-```
-
----
-
-## Paso 5 — Configurar y arrancar la VM
+O desde la shell de Proxmox:
 
 ```bash
-# Asignar el disco importado a la VM
-qm set 200 --scsihw virtio-scsi-pci --scsi0 sotorage-vms:200/vm-200-disk-0.raw
-
-# Configurar disco de arranque
-qm set 200 --boot c --bootdisk scsi0
-
-# Iniciar la VM
-qm start 200
+pct create 200 local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst \
+  --hostname wazuh \
+  --cores 4 \
+  --memory 8192 \
+  --swap 2048 \
+  --rootfs sotorage-vms:50 \
+  --net0 name=eth0,bridge=vmbr0,ip=10.0.0.4/24,gw=10.0.0.1 \
+  --nameserver 8.8.8.8 \
+  --unprivileged 1 \
+  --start 1
 ```
 
 ---
 
-## Paso 6 — Configurar IP estática
-
-En Proxmox → selecciona la VM 200 → **Console**, luego:
-
-1. Inicia sesión con:
-
-```
-usuario: wazuh-user
-contraseña: wazuh
-```
-
-2. Cambia a root:
+## Paso 3 — Entrar al contenedor
 
 ```bash
-sudo -i
-```
-
-3. Configura la IP estática:
-
-```bash
-nmcli con mod "Wired connection 1" ipv4.addresses 10.0.0.4/24
-nmcli con mod "Wired connection 1" ipv4.gateway 10.0.0.1
-nmcli con mod "Wired connection 1" ipv4.dns 8.8.8.8
-nmcli con mod "Wired connection 1" ipv4.method manual
-nmcli con up "Wired connection 1"
-```
-
-4. Verifica la IP:
-
-```bash
-ip a
+pct enter 200
 ```
 
 ---
 
-## Paso 7 — Acceder al dashboard de Wazuh
+## Paso 4 — Actualizar el sistema
+
+```bash
+apt update && apt upgrade -y
+```
+
+---
+
+## Paso 5 — Instalar Wazuh
+
+```bash
+curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && bash ./wazuh-install.sh -a
+```
+
+> Este proceso instala automáticamente el Indexer, Manager, Filebeat y Dashboard. Tarda entre 15-20 minutos.
+
+> ⚠️ Si aparece advertencia de recursos insuficientes, agrega el parámetro `-i`:
+> ```bash
+> curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && bash ./wazuh-install.sh -a -i
+> ```
+
+> ℹ️ Los errores `tr: write error: Broken pipe` durante la generación de certificados son normales y no afectan la instalación.
+
+Al finalizar verás el resumen con las credenciales:
+
+```
+INFO: --- Summary ---
+INFO: You can access the web interface https://<wazuh-dashboard-ip>:443
+    User: admin
+    Password: <CONTRASEÑA_GENERADA>
+INFO: Installation finished.
+```
+
+> ⚠️ Guarda la contraseña generada en un lugar seguro.
+
+---
+
+## Paso 6 — Acceder al dashboard
 
 Desde cualquier equipo en la misma red, abre el navegador:
 
@@ -168,28 +158,29 @@ Desde cualquier equipo en la misma red, abre el navegador:
 https://10.0.0.4
 ```
 
-Credenciales por defecto:
+Credenciales:
 
 ```
-usuario: admin
-contraseña: admin
+Usuario: admin
+Contraseña: (la generada en el paso anterior)
 ```
 
 > ⚠️ El navegador mostrará advertencia de certificado autofirmado. Haz clic en "Avanzado" → "Continuar de todos modos".
 
-> ⚠️ El dashboard puede tardar 1-2 minutos en inicializar la primera vez.
-
 ---
 
-## Paso 8 — Cambiar contraseñas por defecto
+## Paso 7 — Verificar servicios
 
-Por seguridad, cambia las credenciales inmediatamente después de acceder:
+Desde dentro del contenedor:
 
 ```bash
-/usr/share/wazuh-indexer/plugins/opensearch-security/tools/wazuh-passwords-tool.sh --change-all
+systemctl status wazuh-manager
+systemctl status wazuh-indexer
+systemctl status wazuh-dashboard
+systemctl status filebeat
 ```
 
-Guarda las nuevas contraseñas en un lugar seguro.
+Todos deben mostrar **active (running)**.
 
 ---
 
@@ -201,6 +192,7 @@ Guarda las nuevas contraseñas en un lugar seguro.
 | **Wazuh Indexer** | `/etc/wazuh-indexer/opensearch.yml` |
 | **Filebeat** | `/etc/filebeat/filebeat.yml` |
 | **Wazuh Dashboard** | `/etc/wazuh-dashboard/opensearch_dashboards.yml` |
+| **Contraseñas** | `/var/log/wazuh-install.log` |
 
 ---
 
@@ -208,12 +200,12 @@ Guarda las nuevas contraseñas en un lugar seguro.
 
 | Problema | Solución |
 |---|---|
-| `storage 'X' does not exist` al importar | Verificar nombre exacto del storage con `pvesm status` |
-| El disco queda como `unused0` | Faltó ejecutar el comando `qm set ... --scsi0`. Ver Paso 5 |
-| Dashboard no carga después de 5 minutos | Verificar servicio: `systemctl status wazuh-dashboard` |
-| No puedo hacer ping a la VM | Verificar IP con `ip a` y que el bridge `vmbr0` esté activo en Proxmox |
-| Error de certificado en el navegador | Normal, es autofirmado. Aceptar la excepción de seguridad |
-| La VM no arranca | Verificar configuración con `qm config 200` |
+| Dashboard no carga | Verificar: `systemctl status wazuh-dashboard` |
+| Error `tr: write error: Broken pipe` | Normal, no afecta la instalación |
+| Advertencia de recursos insuficientes | Agregar `-i` al comando de instalación |
+| No puedo acceder a `https://10.0.0.4` | Verificar IP con `ip a` dentro del contenedor |
+| Error de certificado en el navegador | Normal, es autofirmado. Aceptar la excepción |
+| Olvidé la contraseña | Recuperar con: `tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt` |
 
 ---
 
@@ -224,9 +216,9 @@ Guarda las nuevas contraseñas en un lugar seguro.
 | Campo | Valor |
 |---|---|
 | Fecha instalación | |
-| Versión Wazuh | 4.14.4 |
+| Versión Wazuh | 4.14.5 |
 | IP asignada | 10.0.0.4 |
-| VM ID en Proxmox | 200 |
+| CT ID en Proxmox | 200 |
 | Observaciones | |
 
 ---
