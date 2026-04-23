@@ -118,18 +118,3 @@ Este proyecto utiliza 3 servidores físicos de rack ubicados en la sala de servi
 
 ---
 
-## Checklist pre-instalación
-
-Antes de instalar cualquier software, verificar lo siguiente en cada servidor:
-
-- [ ] Encender servidor y entrar a BIOS (F2 en Dell, F9 en HP)
-- [ ] Verificar que Intel VT-x está **habilitado**
-- [ ] Ingresar a controladora RAID (Ctrl+R en Dell, F8 en HP) y confirmar estado de discos
-- [ ] Limpiar filtros de polvo (especialmente el HP DL180)
-- [ ] Verificar conectividad KVM con los 3 servidores
-- [ ] Registrar la IP que asignará encargado de sala para cada servidor
-- [ ] Confirmar especificaciones reales (RAM, discos) al encender
-
----
-
-*← [Investigación](../00-investigacion/README.md) | Siguiente: [Software →](../02-software/README.md)*
