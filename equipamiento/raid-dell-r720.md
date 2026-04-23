@@ -1,219 +1,328 @@
-# Configuración RAID — Dell PowerEdge R420
+# 🖥️ Lab: Instalación Proxmox VE en Dell PowerEdge R720 con RAID PERC H710P
 
-## Contexto
+## Descripción
 
-Este documento registra el proceso real de configuración de las unidades RAID del servidor Dell PowerEdge R420, realizado durante la preparación del hardware para el proyecto SOC. Este servidor actúa como laboratorio de máquinas vulnerables, ejecutando Proxmox VE con VMs para práctica ofensiva y defensiva.
-
----
-
-## Controladora RAID — PERC H310 Mini
-
-Este servidor utiliza la controladora **Dell PERC H310 Mini**, que es más básica que la H710P del R720. Diferencias importantes:
-
-| Característica | PERC H710P (R720) | PERC H310 (R420) |
-|---|---|---|
-| Write Back Cache | ✅ Soportado | ❌ No soportado |
-| Hot Spare Global | ✅ Soportado | ⚠️ Limitado |
-| RAID soportados | 0, 1, 5, 6, 10 | 0, 1, 5 |
-| Cache dedicada | 512MB o 1GB | Sin caché dedicada |
-
-> ⚠️ En esta controladora usar siempre **Write Through** en lugar de Write Back.
+Laboratorio completo de configuración de almacenamiento RAID y instalación de Proxmox VE en un servidor Dell PowerEdge R720, aprovechando 6 discos físicos organizados en dos grupos RAID independientes.
 
 ---
 
-## ⚠️ Nota importante — Proxmox y RAID 5
+## Hardware utilizado
 
-**Proxmox VE no puede instalarse sobre un Virtual Disk en RAID 5.** El instalador requiere RAID 1 o RAID 10 para el disco de sistema operativo. Por esta razón se usa RAID 1 en este servidor.
-
----
-
-## Inventario de discos del servidor
-
-### Estado inicial encontrado
-
-Al revisar el servidor se encontró 1 Virtual Disk preconfigurado de una instalación anterior:
-
-| VD | RAID | Capacidad | Estado |
-|---|---|---|---|
-| VD0 | RAID 1 | 558 GB | Ready |
-
-### Diagnóstico de discos físicos
-
-| Slot | Tamaño | Estado | Acción |
-|---|---|---|---|
-| 00 | 558 GB (~600GB) | Online ✅ | Usar en VD0 |
-| 01 | 558 GB (~600GB) | Online ✅ | Usar en VD0 |
-| 02 | 558 GB (~600GB) | Online ✅ | Sin asignar — disponible |
-| 03 | — Vacío — | N/A | Disponible para expansión futura |
-
-> ℹ️ Los valores en GB que muestra la controladora (558GB) corresponden a discos de 600GB nominales. La diferencia se debe al overhead de formateo y la conversión entre GB y GiB.
-
----
-
-## Diseño RAID aplicado
-
-### Configuración final
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  VD0 — RAID 1 — ~558GB  →  Proxmox OS + VMs            │
-│  ├── Slot 00: SAS 558GB                                 │
-│  └── Slot 01: SAS 558GB                                 │
-├─────────────────────────────────────────────────────────┤
-│  Slot 02: SAS 558GB — Sin asignar                       │
-│  Slot 03: Vacío — disponible para expansión futura      │
-└─────────────────────────────────────────────────────────┘
-```
-
-Con RAID 1 en 2 discos se obtienen **~558GB útiles** con tolerancia a 1 falla de disco. Proxmox y todas las VMs conviven en este VD.
-
----
-
-## Procedimiento de configuración RAID
-
-### Acceder al BIOS de la controladora PERC H310
-
-Al encender el servidor, presionar `Ctrl + R` cuando aparezca el banner de la controladora RAID.
-
-En modo UEFI:
-```
-F2 → Device Settings → Integrated RAID Controller 1: Dell PERC H310 Mini
-```
-
----
-
-### Paso 1 — Verificar VD existente
-
-Ir a:
-```
-Virtual Disk Management → Manage Virtual Disk Properties
-```
-
-Confirmar que el VD0 existente tiene:
-
-```
-Virtual Disk 0 → RAID 1 → ~558GB → Ready ✅
-```
-
-Si el VD existente está correcto, no es necesario eliminarlo ni recrearlo. Continuar al Paso 2.
-
-Si el VD no existe o está mal configurado, ir a:
-```
-Virtual Disk Management → Create Virtual Disk
-```
-
-Y configurar:
-
-| Campo | Valor |
+| Componente | Detalle |
 |---|---|
-| Select RAID Level | RAID 1 |
-| Virtual Disk Name | Boot |
-| Virtual Disk Size | Dejar vacío (máximo automático) |
-| Strip Element Size | 64 KB |
-| Read Policy | Read Ahead |
-| Write Policy | Write Through |
-| Initialize | Fast Initialize |
-
-En **Select Physical Disks**, marcar únicamente:
-- ✅ Slot 00 — SAS 558GB
-- ✅ Slot 01 — SAS 558GB
-
-→ `Apply Changes` → Confirmar
+| Servidor | Dell PowerEdge R720 |
+| Controlador RAID | PERC H710P |
+| Discos sistema | 3x 900GB SAS |
+| Discos almacenamiento | 3x 3TB SAS |
+| NICs | 8x interfaces (nic0 a nic7) |
+| IP del servidor | 10.0.0.3 |
 
 ---
 
-### Paso 2 — Configurar disco de arranque
-
-Ir a:
-```
-Controller Management → Change Controller Properties → Set Bootable Device
-```
-
-Seleccionar: **Virtual Disk 0: RAID1, ~558GB**
-
-→ `Apply Changes`
-
----
-
-### Paso 3 — Verificación final RAID
-
-Confirmar:
+## Arquitectura final
 
 ```
-Virtual Disk 0 → RAID 1 → ~558GB → Ready ✅
+Discos físicos:
+├── Slot 0 — 900GB — RAID 1 (sistema)
+├── Slot 1 — 900GB — RAID 1 (sistema)
+├── Slot 2 — 900GB — Hot Spare (repuesto automático)
+├── Slot 3 — 3TB  — RAID 5 (almacenamiento)
+├── Slot 4 — 3TB  — RAID 5 (almacenamiento)
+└── Slot 5 — 3TB  — RAID 5 (almacenamiento)
 
-Slot 00 → 558GB → Online ✅  (miembro VD0)
-Slot 01 → 558GB → Online ✅  (miembro VD0)
-Slot 02 → 558GB → Online ✅  (sin asignar)
-Slot 03 → Vacío
+Discos virtuales exportados por el PERC:
+├── VD0 — RAID 1 — 837GB  → /dev/sda → Sistema Proxmox
+└── VD1 — RAID 5 — 5.5TB  → /dev/sdb → Almacenamiento VMs
 
-Virtual Disk Count  : 1
-Physical Disk Count : 3
+Storage en Proxmox:
+├── local        —  96GB  — Sistema base
+├── local-lvm    — 701GB  — Discos de VMs (LVM)
+└── storage-vms  —  5.5TB — ISOs, backups, contenedores
 ```
 
 ---
 
-## Instalación de Proxmox VE
+## Paso 1 — Configurar RAID en el PERC H710P
 
-### Preparar el USB de instalación
+### Acceder al controlador
 
-1. Descargar la ISO de Proxmox VE → [https://www.proxmox.com/downloads](https://www.proxmox.com/downloads)
-2. Descargar Rufus → [https://rufus.ie](https://rufus.ie)
-3. Usar un USB de mínimo 8GB
-4. En Rufus: seleccionar la ISO y grabar en modo **DD**
+Al encender el servidor, presionar `Ctrl + R` cuando aparezca:
+```
+Press Ctrl+R to run the PERC Configuration Utility
+```
 
-> ⚠️ **SIEMPRE grabar el USB en modo DD.** Si se graba en modo ISO el instalador puede corromperse y generar el error `cleanup root-disks` al arrancar.
+### Crear RAID 1 (sistema — 2x 900GB)
+
+```
+1. Seleccionar Controller 0: PERC H710P → F2
+2. Create New VD
+   - RAID Level:   RAID-1
+   - Physical Disks: Slot 0 + Slot 1
+   - VD Name:      OS-Proxmox
+   - Strip Size:   64KB
+   - Write Policy: Write Back
+   - Read Policy:  Read Ahead
+3. OK → Fast Initialize → Yes
+```
+
+### Asignar Hot Spare (tercer disco de 900GB)
+
+```
+1. Seleccionar Slot 2 (900GB) → F2
+2. Make Global Hot Spare → Yes
+```
+
+### Crear RAID 5 (almacenamiento — 3x 3TB)
+
+```
+1. Seleccionar Controller 0: PERC H710P → F2
+2. Create New VD
+   - RAID Level:   RAID-5
+   - Physical Disks: Slot 3 + Slot 4 + Slot 5
+   - VD Name:      Storage-VMs
+   - Strip Size:   256KB
+   - Write Policy: Write Back
+   - Read Policy:  Read Ahead
+3. OK → Fast Initialize → Yes
+```
+
+### Guardar y salir
+
+```
+Esc → Save Configuration → Yes → el servidor reinicia
+```
+
+> **Nota:** Si los discos aparecen como `Unconfigured Good` o `Ready`, están perfectamente disponibles para crear el RAID. Si aparecen como `Foreign`, hacer primero: F2 → Clear Foreign Config.
 
 ---
 
-### ⚠️ Problema conocido — Proxmox no detecta discos RAID
+## Paso 2 — Instalar Proxmox VE
 
-**En este servidor se presentó el siguiente problema:** al iniciar el instalador de Proxmox, los discos RAID no eran detectados y aparecía el error `cleanup root-disks`. La causa es un conflicto entre la función **IOMMU** del kernel y la controladora H310 en servidores Dell PowerEdge de esta generación.
+### Preparar USB booteable
 
-**Solución — Deshabilitar IOMMU en el instalador:**
+Descargar Proxmox VE desde [https://www.proxmox.com/downloads](https://www.proxmox.com/downloads) y grabarlo con Rufus o Balena Etcher.
 
-1. Encender el servidor, entrar al menú de boot con `F11` y seleccionar el USB.
-2. Cuando aparezca el menú de Proxmox, seleccionar **"Install Proxmox VE"** pero **no presionar Enter**.
-3. Presionar la tecla `e` para editar los comandos de arranque.
-4. Ubicarse en la línea que comienza con `linux`.
-5. En esa línea borrar `quiet splash` si está presente, y agregar al final:
+### Bootear desde USB
 
 ```
-intel_iommu=off
+Al encender el servidor → F11 → Boot Menu → seleccionar USB
 ```
 
-6. Presionar `Ctrl + X` o `F10` para iniciar la instalación.
+### Instalación gráfica
 
-A partir de este punto el instalador detecta correctamente el disco RAID y la instalación procede con normalidad.
+```
+1. Seleccionar: Install Proxmox VE (Graphical)
 
-> ℹ️ Este problema es conocido en servidores Dell PowerEdge de generación 12 (R420, R620, R720) con controladoras PERC H310/H710 al instalar distribuciones Linux modernas. El parámetro `intel_iommu=off` deshabilita la virtualización de E/S que causa el conflicto.
+2. Target Harddisk:
+   → /dev/sda (837GB — VD0 RAID1) ← el sistema va aquí
+   
+3. Filesystem: ext4
+   ⚠️ NO usar ZFS — el RAID ya está hecho por hardware (PERC)
+
+4. Configuración regional:
+   - Country:   Chile
+   - Timezone:  America/Santiago
+   - Keyboard:  Spanish (Latin American)
+
+5. Credenciales:
+   - Password: (contraseña root)
+   - Email:    (email administrador)
+
+6. Red:
+   - Hostname:  proxmox.local
+   - IP:        10.0.0.3/24
+   - Gateway:   10.0.0.1
+   - DNS:       8.8.8.8
+
+7. Install → reinicia automáticamente
+```
 
 ---
 
-## Arquitectura final — Cómo se usa en Proxmox
+## Paso 3 — Configuración post-instalación
+
+### Acceder al panel web
 
 ```
-┌──────────────────────────────────────────────────┐
-│         PROXMOX VE (instalado en VD0)            │
-│                                                  │
-│  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │  VM 1            │  │  VM 2                │  │
-│  │  Metasploitable  │  │  DVWA                │  │
-│  │  Disco del VD0   │  │  Disco del VD0       │  │
-│  └──────────────────┘  └──────────────────────┘  │
-│                                                  │
-│  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │  VM 3            │  │  VM 4+               │  │
-│  │  Windows         │  │  Máquinas VulnHub    │  │
-│  │  vulnerable      │  │  Disco del VD0       │  │
-│  └──────────────────┘  └──────────────────────┘  │
-│                                                  │
-│  Storage Pool: VD0 (~558GB) — RAID 1 — 2xSAS    │
-└──────────────────────────────────────────────────┘
+https://10.0.0.3:8006
+Usuario: root
 ```
 
-El tráfico generado por estas VMs es capturado por los agentes Wazuh y enviado al servidor R720, permitiendo práctica de detección y respuesta a incidentes en tiempo real.
+### Corregir repositorios (sin licencia enterprise)
+
+Proxmox instala por defecto repos enterprise que requieren suscripción paga. Hay que desactivarlos:
+
+```bash
+# Desactivar repos enterprise en formato .list
+sed -i 's/^deb/# deb/' /etc/apt/sources.list.d/pve-enterprise.list
+sed -i 's/^deb/# deb/' /etc/apt/sources.list.d/ceph.list
+
+# Desactivar repos enterprise en formato .sources (formato nuevo apt)
+sed -i '1s/^/Enabled: no\n/' /etc/apt/sources.list.d/pve-enterprise.sources
+sed -i '1s/^/Enabled: no\n/' /etc/apt/sources.list.d/ceph.sources
+
+# Agregar repo gratuito de Proxmox
+echo "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" \
+  > /etc/apt/sources.list.d/pve-no-sub.list
+```
+
+### Sincronizar el reloj del servidor
+
+```bash
+timedatectl set-ntp false
+timedatectl set-time "YYYY-MM-DD HH:MM:SS"  # ajustar a hora actual
+timedatectl set-ntp true
+date
+```
+
+> **Importante:** Si el reloj está desincronizado, apt falla al verificar firmas de los repositorios con error `Not live until...`
+
+### Actualizar Proxmox
+
+```bash
+apt update && apt upgrade -y
+```
 
 ---
 
-*← [RAID Dell R720](./raid-dell-r720.md) | [Volver al índice →](../README.md)*
+## Paso 4 — Configurar almacenamiento de 5.5TB
+
+### Verificar que el disco aparece
+
+```bash
+lsblk -d -o NAME,SIZE,TYPE,VENDOR,MODEL
+```
+
+Resultado esperado:
+```
+sda  837.8G  disk  DELL  PERC H710P  ← sistema
+sdb    5.5T  disk  DELL  PERC H710P  ← almacenamiento ✅
+```
+
+### Particionar, formatear y montar
+
+```bash
+# Instalar parted si no está disponible
+apt install -y parted
+
+# Crear tabla de particiones GPT y partición única
+parted /dev/sdb mklabel gpt
+parted /dev/sdb mkpart primary ext4 0% 100%
+
+# Formatear en ext4
+mkfs.ext4 /dev/sdb1
+
+# Crear punto de montaje y montar
+mkdir /mnt/storage-vms
+mount /dev/sdb1 /mnt/storage-vms
+
+# Montaje permanente al reiniciar
+echo '/dev/sdb1 /mnt/storage-vms ext4 defaults 0 2' >> /etc/fstab
+
+# Verificar
+df -h | grep storage
+```
+
+Resultado esperado:
+```
+/dev/sdb1   5.5T   2.1M   5.2T   1%   /mnt/storage-vms
+```
+
+### Agregar storage al panel web de Proxmox
+
+```
+Centro de datos → Almacenamiento → Agregar → Directorio
+
+ID:          storage-vms
+Directorio:  /mnt/storage-vms
+Contenido:   ✓ Imagen de disco
+             ✓ Imagen ISO
+             ✓ Copia de seguridad VZDump
+             ✓ Plantilla de contenedor
+
+→ Agregar
+```
+
+---
+
+## Problemas encontrados y soluciones
+
+### ❌ Error 401 en repositorios enterprise
+**Causa:** Proxmox instala repos enterprise por defecto, requieren suscripción paga.  
+**Solución:** Desactivar archivos `.list` y `.sources` enterprise, agregar repo `pve-no-subscription`.
+
+### ❌ Error "Not live until" al hacer apt update
+**Causa:** El reloj del servidor estaba ~4 horas atrasado, las firmas GPG fallaban.  
+**Solución:** Sincronizar hora con `timedatectl` antes de correr apt.
+
+### ❌ El disco de 5.5TB no aparecía en lsblk
+**Causa:** El RAID 5 estaba creado en el PERC pero sin inicializar (Fast Initialize pendiente).  
+**Solución:** Entrar al PERC con Ctrl+R, verificar estado del VD1 y ejecutar Fast Initialize.
+
+### ❌ perccli no disponible en repositorios
+**Causa:** perccli es una herramienta propietaria de Dell/Broadcom, no está en repos de Debian.  
+**Alternativa:** Verificar discos con `lsblk`, `dmesg | grep scsi` y `cat /proc/scsi/scsi`.
+
+---
+
+## Comandos útiles de diagnóstico
+
+```bash
+# Ver discos y particiones
+lsblk -d -o NAME,SIZE,TYPE,VENDOR,MODEL
+
+# Ver uso de almacenamiento
+df -h
+
+# Ver logs del controlador RAID
+dmesg | grep -i "sd\|scsi\|raid\|perc" | tail -30
+
+# Ver dispositivos SCSI detectados
+cat /proc/scsi/scsi
+
+# Ver interfaces de red
+ip a
+
+# Ver velocidad de NIC
+ethtool nic0 | grep -E "Speed|Duplex"
+
+# Ver repositorios activos
+grep -r "enterprise" /etc/apt/sources.list.d/
+
+# Ver estado del reloj
+timedatectl status
+```
+
+---
+
+## Estado final del servidor
+
+```
+Panel web:   https://10.0.0.3:8006
+SO:          Proxmox VE (Debian trixie)
+Kernel:      proxmox-kernel-6.17
+
+Almacenamiento:
+├── local        96GB   activo ✅
+├── local-lvm   701GB   activo ✅
+└── storage-vms  5.5TB  activo ✅
+
+Red:
+└── vmbr0  10.0.0.3/24  UP ✅ (bridge sobre nic0)
+    nic1 ~ nic7 disponibles para configurar
+```
+
+---
+
+## Próximos pasos sugeridos
+
+- [ ] Subir ISOs para instalación de VMs
+- [ ] Crear primera VM de prueba
+- [ ] Configurar backup automático en storage-vms
+- [ ] Configurar NICs adicionales (nic1~nic7) para red de VMs
+- [ ] Configurar acceso iDRAC para gestión remota
+- [ ] Agregar usuario administrador no-root en Proxmox
+
+---
+
+*Laboratorio realizado en Dell PowerEdge R720 con Proxmox VE sobre Debian trixie*
