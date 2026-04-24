@@ -162,28 +162,26 @@ VirtualBox es un hipervisor de Tipo 2 (hosted): se instala sobre un sistema oper
 ```
                         RED INSTITUCIONAL INACAP
                                   │
-                         [pfSense / Firewall]
+                             [Gateway Cisco]
+                             10.0.0.1
                                   │
-                ┌─────────────────┼─────────────────┐
-                │                                   │
-         VLAN Gestión                        VLAN Laboratorio
-                │                                   │
-    ┌───────────┴───────────┐          ┌────────────┴────────────┐
-    │   Dell PowerEdge R720  │          │   HP ProLiant DL180 G6  │
-    │   (SOC Principal)      │          │   (Laboratorio)         │
-    │                        │          │                         │
-    │  [LXC] Wazuh ──────────┼──agentes─┤  [VM] Ubuntu + Docker   │
-    │  [LXC] Zabbix          │          │       DVWA              │
-    │                        │          │       Juice Shop        │
-    └────────────────────────┘          └─────────────────────────┘
-    │   Dell PowerEdge R420  │
-    │   (Red y servicios)    │
-    │  [VM]  pfSense         │
-    │  [LXC] Grafana         │
-    └────────────────────────┘
+                    ┌─────────────┴─────────────┐
+                    │                           │
+       ┌────────────┴────────────┐  ┌───────────┴───────────┐
+       │   Dell PowerEdge R720   │  │  Dell PowerEdge R420  │
+       │   proxmox-2 — 10.0.0.3  │  │  proxmox-1 — 10.0.0.2 │
+       │   (SOC Principal)       │  │  (Lab. actividades)   │
+       │                         │  │                       │
+       │  [LXC] Wazuh 10.0.0.4   │  │  [LXC] Contenedores   │
+       │  [LXC] Suricata 10.0.0.5│  │        de alumnos     │
+       │  [LXC] Zabbix 10.0.0.50 │  │  [LXC] Maquinas       │
+       │                         │  │        vulnerables    │
+       └─────────────────────────┘  └───────────────────────┘
+
+       HP ProLiant DL180 G6 — No operativo (fase futura)
 ```
 
-> 🔒 El tráfico de ataque generado en la VLAN de laboratorio **nunca sale hacia la red institucional**. Solo se permite el paso de los logs del agente Wazuh hacia el SOC principal, por el puerto 1514.
+> 🔒 Toda la infraestructura opera en la red `10.0.0.0/24` de la sala A315. Los ataques de práctica se realizan únicamente entre contenedores autorizados dentro de esta red.
 
 ---
 
@@ -191,9 +189,9 @@ VirtualBox es un hipervisor de Tipo 2 (hosted): se instala sobre un sistema oper
 
 | Servidor | Modelo | Factor | Rol |
 |---|---|---|---|
-| Servidor 1 | Dell PowerEdge R720 | 2U Rack | SOC principal: Wazuh + Zabbix |
-| Servidor 2 | Dell PowerEdge R420 | 1U Rack | Red y servicios de apoyo |
-| Servidor 3 | HP ProLiant DL180 G6 | 2U Rack | Laboratorio de máquinas vulnerables |
+| Servidor 1 | Dell PowerEdge R720 | 2U Rack | SOC principal: Wazuh + Suricata + Zabbix |
+| Servidor 2 | Dell PowerEdge R420 | 1U Rack | Actividades de alumnos y máquinas vulnerables |
+| Servidor 3 | HP ProLiant DL180 G6 | 2U Rack | ❌ No operativo — fase futura |
 
 Los tres servidores tienen instalado **Proxmox VE** como hipervisor. Los servicios corren como máquinas virtuales o contenedores dentro de cada uno.
 
@@ -203,15 +201,22 @@ Los tres servidores tienen instalado **Proxmox VE** como hipervisor. Los servici
 
 ```
 soc-inacap/
-├── README.md                  ← Este documento
-├── 00-investigacion/          ← Marco teórico completo
-├── 01-equipamiento/           ← Inventario técnico y checklist de hardware
-├── 02-software/               ← Stack de herramientas, versiones y requisitos
-├── 03-planificacion/          ← Arquitectura, red, VLANs y tabla de IPs
-├── 04-guia-proxmox/           ← Instalación paso a paso (VirtualBox → servidor real)
-├── 05-guia-soc/               ← Instalación de Wazuh, Zabbix, Docker y lab vulnerable
-├── 06-validacion/             ← Pruebas de funcionamiento y métricas
-└── 07-pruebas/                ← Diario técnico: registro de avances y problemas
+├── README.md                        ← Este documento
+├── 00-investigacion/                ← Marco teórico completo
+├── 01-equipamiento/                 ← Inventario técnico y checklist de hardware
+├── 02-software/                     ← Stack de herramientas, versiones y requisitos
+├── 03-planificacion/                ← Arquitectura, red y tabla de IPs
+├── 04-guia-proxmox/                 ← Instalación paso a paso (VirtualBox → servidor real)
+│   ├── raid-dell-r720.md            ← Configuración RAID Dell R720
+│   └── raid-dell-r420.md            ← Configuración RAID Dell R420
+├── 05-guia-wazuh/                   ← Instalación Wazuh all-in-one en LXC
+├── 05-guia-suricata/                ← Instalación Suricata IDS en LXC
+├── 05-guia-zabbix/                  ← Instalación Zabbix en LXC
+├── 06-validacion/                   ← Pruebas de funcionamiento y métricas
+├── 07-pruebas/                      ← Diario técnico: registro de avances y problemas
+├── gestion-servidores/              ← Normas de uso, estándares y permisos
+├── actividades-laboratorio/         ← Actividades académicas por carrera
+└── maquinas-desplegadas/            ← Resumen de contenedores activos por servidor
 ```
 
 Cada carpeta contiene su propio `README.md` con el contenido completo de esa fase. Se recomienda seguirlas en orden.
@@ -242,10 +247,15 @@ Sigue la [Fase 4 — Guía Proxmox, Parte A](./04-guia-proxmox/README.md), que e
 | 01 — Equipamiento | Inventario de servidores | ✅ Documentado |
 | 02 — Software | Stack tecnológico | ✅ Documentado |
 | 03 — Planificación | Arquitectura y red | ✅ Documentado |
-| 04 — Guía Proxmox | Instalación del hipervisor | 🔄 En progreso |
-| 05 — Guía SOC | Instalación de Wazuh y Zabbix | ⏳ Pendiente |
+| 04 — Guía Proxmox | Instalación del hipervisor | ✅ Instalado en R720 y R420 |
+| 05 — Guía Wazuh | Instalación de Wazuh all-in-one | ✅ Instalado y operativo |
+| 05 — Guía Suricata | Instalación de Suricata IDS | ✅ Instalado y operativo |
+| 05 — Guía Zabbix | Instalación de Zabbix | 🔄 Instalado, pendiente configuración |
 | 06 — Validación | Pruebas de funcionamiento | ⏳ Pendiente |
 | 07 — Pruebas | Diario técnico | 🔄 En progreso |
+| — — Gestión | Normas de uso y estándares | ✅ Documentado |
+| — — Actividades | Actividades por carrera | ✅ Documentado |
+| — — Máquinas | Resumen de máquinas desplegadas | ✅ Documentado |
 
 ---
 
