@@ -51,7 +51,7 @@ apt update && apt upgrade -y
 apt install curl wget -y
 
 # Ejecutar el instalador automático de Wazuh (All-in-one)
-curl -sO https://packages.wazuh.com/4.7/wazuh-install.sh && bash wazuh-install.sh -a
+curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && bash wazuh-install.sh -a
 ```
 
 > El proceso tarda entre 10–20 minutos. Al terminar, mostrará las credenciales de acceso. **¡Anótalas!**
