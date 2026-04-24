@@ -41,7 +41,7 @@ En esta guía se instalan los tres componentes en un solo contenedor LXC (all-in
 | **CPU** | 4 cores |
 | **RAM** | 8192 MB |
 | **Swap** | 2048 MB |
-| **Disco** | 50 GB en `sotorage-vms` |
+| **Disco** | 50 GB en `storage-vms` |
 | **IP** | `10.0.0.4/24` |
 | **Gateway** | `10.0.0.1` |
 | **DNS** | `8.8.8.8` |
@@ -77,7 +77,7 @@ Desde la interfaz web: **Create CT** y configura:
 | General | Hostname | wazuh |
 | General | Password | (elige una contraseña) |
 | Template | Template | ubuntu-22.04-standard |
-| Disks | Storage | sotorage-vms |
+| Disks | Storage | storage-vms |
 | Disks | Disk size | 50 GB |
 | CPU | Cores | 4 |
 | Memory | Memory | 8192 MB |
@@ -96,7 +96,7 @@ pct create 200 local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst \
   --cores 4 \
   --memory 8192 \
   --swap 2048 \
-  --rootfs sotorage-vms:50 \
+  --rootfs storage-vms:50 \
   --net0 name=eth0,bridge=vmbr0,ip=10.0.0.4/24,gw=10.0.0.1 \
   --nameserver 8.8.8.8 \
   --unprivileged 1 \
