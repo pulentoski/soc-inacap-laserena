@@ -2,91 +2,104 @@
 
 ## Inventario de Servidores
 
-Este proyecto utiliza 3 servidores físicos de rack ubicados en la sala de servidores de INACAP La Serena.
+Este proyecto utiliza 3 servidores físicos de rack ubicados en la sala A315 de INACAP La Serena.
 
 ---
 
 ## Servidor 1 — Dell PowerEdge R720
 
-**Rol en el proyecto:** Cerebro del SOC (Wazuh Indexer + Dashboard + Zabbix)
+**Rol en el proyecto:** SOC principal (Wazuh + Zabbix + Suricata)
 
 | Característica | Detalle |
 |---|---|
 | **Modelo** | Dell PowerEdge R720 |
+| **Hostname** | proxmox-2 |
+| **IP** | 10.0.0.3 |
 | **Factor de forma** | 2U Rack |
 | **Procesador** | Intel Xeon E5-2600 (2 sockets) |
 | **Virtualización CPU** | Intel VT-x / VT-d ✅ |
-| **RAM** | Por confirmar (estimado 64–128 GB) |
-| **Almacenamiento** | Múltiples discos SAS 3TB + SAS 600GB |
-| **Controladora RAID** | Dell PERC H710 / H710P |
-| **Tarjetas de red** | 4 puertos Gigabit Ethernet integrados |
+| **RAM** | 64 GB ECC DDR3 |
+| **Controladora RAID** | Dell PERC H710P Mini |
+| **Tarjetas de red** | 8 puertos Gigabit Ethernet |
 | **Gestión remota** | iDRAC 7 |
-| **Sistema a instalar** | Proxmox VE |
+| **Sistema instalado** | Proxmox VE 9.x (Debian Trixie) |
+| **Panel web** | https://10.0.0.3:8006 |
 
-### Configuración RAID planeada
+### Configuración RAID (PERC H710P)
 
 | Arreglo | Discos | RAID | Uso |
 |---|---|---|---|
-| Virtual Disk 1 | 2 × 600GB SAS | RAID 1 (espejo) | Sistema operativo (Proxmox) |
-| Virtual Disk 2 | Discos 3TB restantes | RAID 5 | Almacenamiento de VMs y logs |
+| Virtual Disk 0 | 2 × 900GB SAS | RAID 1 (espejo) | Sistema operativo (Proxmox) |
+| — | 1 × 900GB SAS | Hot Spare | Repuesto automático |
+| — | 3 × 3TB SAS | Sin RAID (ext4) | Almacenamiento VMs y contenedores |
 
-### VMs / Contenedores planeados
+### Almacenamiento en Proxmox
 
-- LXC: Wazuh Indexer + Dashboard
-- LXC: Zabbix Server
-- VM: Ubuntu Server (agente de prueba)
+| Storage | Tamaño | Uso |
+|---|---|---|
+| local | 96 GB | Sistema base |
+| local-lvm | 701 GB | Discos de VMs (LVM) |
+| storage-vms | 5.5 TB | ISOs, backups, contenedores |
+
+### Contenedores en producción
+
+| CT ID | Hostname | IP | Servicio |
+|---|---|---|---|
+| 200 | wazuh | 10.0.0.4 | Wazuh SIEM/XDR (all-in-one) |
+| 201 | Suricata | 10.0.0.5 | IDS Suricata |
+| — | zabbix | 10.0.0.6 | Zabbix (pendiente instalación) |
 
 ---
 
 ## Servidor 2 — Dell PowerEdge R420
 
-**Rol en el proyecto:** Servicios de red y apoyo
+**Rol en el proyecto:** Contenedores vulnerables y actividades de alumnos
 
 | Característica | Detalle |
 |---|---|
 | **Modelo** | Dell PowerEdge R420 |
+| **Hostname** | daniel |
+| **IP** | 10.0.0.2 |
 | **Factor de forma** | 1U Rack |
-| **Procesador** | Intel Xeon E5-2400 (1–2 sockets) |
+| **Procesador** | Intel Xeon E5-2400 |
 | **Virtualización CPU** | Intel VT-x ✅ |
-| **RAM** | Por confirmar |
-| **Almacenamiento** | Por confirmar |
-| **Controladora RAID** | Dell PERC H310 / H710 |
+| **Controladora RAID** | Dell PERC H310 Mini |
 | **Tarjetas de red** | 4 puertos Gigabit Ethernet |
 | **Gestión remota** | iDRAC 7 |
-| **Sistema a instalar** | Proxmox VE (unido al clúster del R720) |
+| **Sistema instalado** | Proxmox VE 9.x (Debian Trixie) |
+| **Panel web** | https://10.0.0.2:8006 |
 
-### VMs / Contenedores planeados
+### Configuración RAID (PERC H310)
 
-- VM: Wazuh Manager
-- LXC: Grafana (visualización adicional)
-- VM: pfSense (firewall virtual — opcional)
+| Arreglo | Discos | RAID | Uso |
+|---|---|---|---|
+| Virtual Disk 0 | 2 × 600GB SAS | RAID 1 (espejo) | Sistema operativo + VMs |
+
+### Contenedores y VMs planeados
+
+- Máquinas vulnerables para actividades de pentesting (creadas por el docente)
+- Contenedores de alumnos (rango IP 10.0.0.50 — 10.0.0.99)
+- Plataforma CTF (desarrollada por alumnos del proyecto SOC)
 
 ---
 
 ## Servidor 3 — HP ProLiant DL180 G6
 
-**Rol en el proyecto:** Laboratorio de máquinas vulnerables
+**Rol en el proyecto:** Por definir
+
+> ⚠️ **Este servidor no está operativo actualmente.** Se incorporará al proyecto en una fase posterior.
 
 | Característica | Detalle |
 |---|---|
 | **Modelo** | HP ProLiant DL180 G6 |
 | **Factor de forma** | 2U Rack |
 | **Procesador** | Intel Xeon X5500 / L5500 |
-| **Virtualización CPU** | Intel VT-x ✅ (verificar en BIOS) |
-| **RAM** | Por confirmar |
-| **Almacenamiento** | Múltiples discos 1TB |
+| **Virtualización CPU** | Intel VT-x ✅ (por verificar) |
 | **Controladora RAID** | HP Smart Array P410 |
 | **Tarjetas de red** | 2–4 puertos Gigabit Ethernet |
 | **Gestión remota** | HP iLO 2 |
-| **Sistema a instalar** | Proxmox VE o Ubuntu Server |
-
-### VMs / Contenedores planeados
-
-- VM: Ubuntu Server con Docker
-  - Contenedor DVWA
-  - Contenedor Juice Shop
-  - Contenedor Metasploitable (o VM separada)
-- Todos con agente Wazuh instalado
+| **Sistema a instalar** | Por definir |
+| **Estado** | ❌ No operativo |
 
 ---
 
@@ -95,26 +108,46 @@ Este proyecto utiliza 3 servidores físicos de rack ubicados en la sala de servi
 | Equipo | Modelo | Función |
 |---|---|---|
 | **Switch KVM** | Tripp-Lite 8 puertos | Gestión de los 3 servidores con un solo teclado/monitor |
-| **Switch de red** | Por confirmar | Conectividad entre servidores y red institucional |
+| **Router/Gateway** | Cisco | Gateway de la red (10.0.0.1) |
 
 ---
 
 ## Diagrama físico del rack
 
 ```
-┌─────────────────────────────┐
-│  Switch KVM Tripp-Lite 8P   │  ← Gestión de consola
-├─────────────────────────────┤
-│   Dell PowerEdge R720       │  ← Servidor 1 (SOC principal)
-│   [Wazuh Indexer + Zabbix]  │
-├─────────────────────────────┤
-│   Dell PowerEdge R420       │  ← Servidor 2 (Red y servicios)
-│   [Wazuh Manager]           │
-├─────────────────────────────┤
-│   HP ProLiant DL180 G6      │  ← Servidor 3 (Lab. vulnerable)
-│   [Docker + DVWA + Juice]   │
-└─────────────────────────────┘
+┌─────────────────────────────────────┐
+│      Switch KVM Tripp-Lite 8P       │  ← Gestión de consola
+├─────────────────────────────────────┤
+│      Dell PowerEdge R720            │  ← SOC principal
+│      proxmox-2 — 10.0.0.3          │
+│      [Wazuh + Suricata + Zabbix]    │
+├─────────────────────────────────────┤
+│      Dell PowerEdge R420            │  ← Lab. actividades
+│      daniel — 10.0.0.2             │
+│      [Contenedores + CTF + Vulns]   │
+├─────────────────────────────────────┤
+│      HP ProLiant DL180 G6           │  ← No operativo ❌
+└─────────────────────────────────────┘
 ```
 
 ---
 
+## Mapa de red
+
+```
+10.0.0.0/24
+├── 10.0.0.1    Gateway (Cisco)
+├── 10.0.0.2    Proxmox R420 (daniel)
+├── 10.0.0.3    Proxmox R720 (proxmox-2)
+├── 10.0.0.4    Wazuh (LXC en R720)
+├── 10.0.0.5    Suricata (LXC en R720)
+├── 10.0.0.6    Zabbix (LXC en R720) — pendiente
+├── 10.0.0.7 — 10.0.0.49    Servicios SOC disponibles
+├── 10.0.0.50 — 10.0.0.99   Contenedores alumnos (R420)
+├── 10.0.0.100 — 10.0.0.199 Máquinas vulnerables (R420)
+└── 10.0.0.200 — 10.0.0.254 Reservado
+```
+
+---
+
+*[Siguiente: Guía Proxmox →](../04-guia-proxmox/README.md)*
