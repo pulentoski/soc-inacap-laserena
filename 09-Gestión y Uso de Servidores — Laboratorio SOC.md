@@ -10,10 +10,11 @@ Este documento establece las normas de uso, gestión y estándares técnicos par
 
 | Servidor | Hostname | IP | Panel Web | Rol |
 |---|---|---|---|---|
-| Dell PowerEdge R420 | proxmox-1 | 10.0.0.2 | https://10.0.0.2:8006 | Zabbix + Contenedores alumnos |
-| Dell PowerEdge R720 | proxmox-2 | 10.0.0.3 | https://10.0.0.3:8006 | Wazuh (SIEM/XDR) |
+| Dell PowerEdge R420 | proxmox-1 | 10.0.0.2 | https://10.0.0.2:8006 | Contenedores alumnos + máquinas vulnerables |
+| Dell PowerEdge R720 | proxmox-2 | 10.0.0.3 | https://10.0.0.3:8006 | Wazuh + Suricata + Zabbix (SOC) |
 | Wazuh (LXC en R720) | wazuh | 10.0.0.4 | https://10.0.0.4 | SIEM/XDR |
-| Zabbix (LXC en R420) | zabbix | 10.0.0.5 | https://10.0.0.5 | Monitoreo |
+| Suricata (LXC en R720) | Suricata | 10.0.0.5 | — | IDS |
+| Zabbix (LXC en R720) | zabbix | 10.0.0.6 | https://10.0.0.6 | Monitoreo |
 
 ---
 
@@ -36,8 +37,9 @@ Este documento establece las normas de uso, gestión y estándares técnicos par
 | 10.0.0.2 | Proxmox 1 (R420) | R420 | Ocupada |
 | 10.0.0.3 | Proxmox 2 (R720) | R720 | Ocupada |
 | 10.0.0.4 | Wazuh | R720 | Ocupada |
-| 10.0.0.5 | Zabbix | R420 | Ocupada |
-| 10.0.0.6 - 10.0.0.49 | Servicios SOC | R720 | Disponibles |
+| 10.0.0.5 | Suricata | R720 | Ocupada |
+| 10.0.0.6 | Zabbix | R720 | Ocupada |
+| 10.0.0.7 - 10.0.0.49 | Servicios SOC | R720 | Disponibles |
 | 10.0.0.50 - 10.0.0.99 | Contenedores alumnos | R420 | Disponibles |
 | 10.0.0.100 - 10.0.0.199 | Máquinas vulnerables | R420 | Reservadas |
 | 10.0.0.200 - 10.0.0.254 | Reservado | — | No usar |
