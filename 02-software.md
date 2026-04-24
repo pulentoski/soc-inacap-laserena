@@ -38,7 +38,7 @@ Este proyecto utiliza exclusivamente software **open source y gratuito**. A cont
 
 | | |
 |---|---|
-| **Versión recomendada** | Wazuh 4.7.x |
+| **Versión recomendada** | Wazuh 4.14.x |
 | **Descarga** | https://documentation.wazuh.com/current/installation-guide/ |
 | **Formato** | Script de instalación (bash) |
 | **Licencia** | GPLv2 (gratuito) |
@@ -58,7 +58,7 @@ Este proyecto utiliza exclusivamente software **open source y gratuito**. A cont
 > Ejecutar dentro del contenedor LXC Ubuntu 22.04.
 
 ```bash
-curl -sO https://packages.wazuh.com/4.7/wazuh-install.sh && sudo bash wazuh-install.sh -a
+curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash wazuh-install.sh -a
 ```
 
 ### Requisitos mínimos para Wazuh
