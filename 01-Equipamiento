@@ -1,0 +1,153 @@
+# Fase 1 — Equipamiento
+
+## Inventario de Servidores
+
+Este proyecto utiliza 3 servidores físicos de rack ubicados en la sala A315 de INACAP La Serena.
+
+---
+
+## Servidor 1 — Dell PowerEdge R720
+
+**Rol en el proyecto:** SOC principal (Wazuh + Zabbix + Suricata)
+
+| Característica | Detalle |
+|---|---|
+| **Modelo** | Dell PowerEdge R720 |
+| **Hostname** | proxmox-2 |
+| **IP** | 10.0.0.3 |
+| **Factor de forma** | 2U Rack |
+| **Procesador** | Intel Xeon E5-2600 (2 sockets) |
+| **Virtualización CPU** | Intel VT-x / VT-d ✅ |
+| **RAM** | 64 GB ECC DDR3 |
+| **Controladora RAID** | Dell PERC H710P Mini |
+| **Tarjetas de red** | 8 puertos Gigabit Ethernet |
+| **Gestión remota** | iDRAC 7 |
+| **Sistema instalado** | Proxmox VE 9.x (Debian Trixie) |
+| **Panel web** | https://10.0.0.3:8006 |
+
+### Configuración RAID (PERC H710P)
+
+| Arreglo | Discos | RAID | Uso |
+|---|---|---|---|
+| Virtual Disk 0 | 2 × 900GB SAS | RAID 1 (espejo) | Sistema operativo (Proxmox) |
+| — | 1 × 900GB SAS | Hot Spare | Repuesto automático |
+| — | 3 × 3TB SAS | Sin RAID (ext4) | Almacenamiento VMs y contenedores |
+
+### Almacenamiento en Proxmox
+
+| Storage | Tamaño | Uso |
+|---|---|---|
+| local | 96 GB | Sistema base |
+| local-lvm | 701 GB | Discos de VMs (LVM) |
+| storage-vms | 5.5 TB | ISOs, backups, contenedores |
+
+### Contenedores en producción
+
+| CT ID | Hostname | IP | Servicio |
+|---|---|---|---|
+| 200 | wazuh | 10.0.0.4 | Wazuh SIEM/XDR (all-in-one) |
+| 201 | Suricata | 10.0.0.5 | IDS Suricata |
+| — | zabbix | 10.0.0.6 | Zabbix (pendiente instalación) |
+
+---
+
+## Servidor 2 — Dell PowerEdge R420
+
+**Rol en el proyecto:** Contenedores vulnerables y actividades de alumnos
+
+| Característica | Detalle |
+|---|---|
+| **Modelo** | Dell PowerEdge R420 |
+| **Hostname** | proxmox-1 |
+| **IP** | 10.0.0.2 |
+| **Factor de forma** | 1U Rack |
+| **Procesador** | Intel Xeon E5-2400 |
+| **Virtualización CPU** | Intel VT-x ✅ |
+| **Controladora RAID** | Dell PERC H310 Mini |
+| **Tarjetas de red** | 4 puertos Gigabit Ethernet |
+| **Gestión remota** | iDRAC 7 |
+| **Sistema instalado** | Proxmox VE 9.x (Debian Trixie) |
+| **Panel web** | https://10.0.0.2:8006 |
+
+### Configuración RAID (PERC H310)
+
+| Arreglo | Discos | RAID | Uso |
+|---|---|---|---|
+| Virtual Disk 0 | 2 × 600GB SAS | RAID 1 (espejo) | Sistema operativo + VMs |
+
+### Contenedores y VMs planeados
+
+- Máquinas vulnerables para actividades de pentesting (creadas por el docente)
+- Contenedores de alumnos (rango IP 10.0.0.50 — 10.0.0.99)
+- Plataforma CTF (desarrollada por alumnos del proyecto SOC)
+
+---
+
+## Servidor 3 — HP ProLiant DL180 G6
+
+**Rol en el proyecto:** Por definir
+
+> ⚠️ **Este servidor no está operativo actualmente.** Se incorporará al proyecto en una fase posterior.
+
+| Característica | Detalle |
+|---|---|
+| **Modelo** | HP ProLiant DL180 G6 |
+| **Factor de forma** | 2U Rack |
+| **Procesador** | Intel Xeon X5500 / L5500 |
+| **Virtualización CPU** | Intel VT-x ✅ (por verificar) |
+| **Controladora RAID** | HP Smart Array P410 |
+| **Tarjetas de red** | 2–4 puertos Gigabit Ethernet |
+| **Gestión remota** | HP iLO 2 |
+| **Sistema a instalar** | Por definir |
+| **Estado** | ❌ No operativo |
+
+---
+
+## Equipamiento de red y gestión
+
+| Equipo | Modelo | Función |
+|---|---|---|
+| **Switch KVM** | Tripp-Lite 8 puertos | Gestión de los 3 servidores con un solo teclado/monitor |
+| **Router/Gateway** | Cisco | Gateway de la red (10.0.0.1) |
+
+---
+
+## Diagrama físico del rack
+
+```
+┌─────────────────────────────────────┐
+│      Switch KVM Tripp-Lite 8P       │  ← Gestión de consola
+├─────────────────────────────────────┤
+│      Dell PowerEdge R720            │  ← SOC principal
+│      proxmox-2 — 10.0.0.3          │
+│      [Wazuh + Suricata + Zabbix]    │
+├─────────────────────────────────────┤
+│      Dell PowerEdge R420            │  ← Lab. actividades
+│      proxmox-1 — 10.0.0.2             │
+│      [Contenedores + CTF + Vulns]   │
+├─────────────────────────────────────┤
+│      HP ProLiant DL180 G6           │  ← No operativo ❌
+└─────────────────────────────────────┘
+```
+
+---
+
+## Mapa de red
+
+```
+10.0.0.0/24
+├── 10.0.0.1    Gateway (Cisco)
+├── 10.0.0.2    Proxmox R420 (proxmox-1)
+├── 10.0.0.3    Proxmox R720 (proxmox-2)
+├── 10.0.0.4    Wazuh (LXC en R720)
+├── 10.0.0.5    Suricata (LXC en R720)
+├── 10.0.0.6    Zabbix (LXC en R720) — pendiente
+├── 10.0.0.7 — 10.0.0.49    Servicios SOC disponibles
+├── 10.0.0.50 — 10.0.0.99   Contenedores alumnos (R420)
+├── 10.0.0.100 — 10.0.0.199 Máquinas vulnerables (R420)
+└── 10.0.0.200 — 10.0.0.254 Reservado
+```
+
+---
+
+*[Siguiente: Guía Proxmox →](../04-guia-proxmox/README.md)*
