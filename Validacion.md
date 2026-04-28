@@ -1,4 +1,4 @@
-# Fase 6 — Validación
+
 
 ## Objetivo
 
