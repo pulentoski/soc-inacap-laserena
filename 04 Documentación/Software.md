@@ -1,4 +1,4 @@
-# Fase 2 — Software
+# Software
 
 ## Stack tecnológico del proyecto
 
