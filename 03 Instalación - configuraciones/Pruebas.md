@@ -1,4 +1,4 @@
-# Fase 7 — Pruebas
+
 
 ## Registro de pruebas del proyecto
 
